@@ -72,6 +72,76 @@ button.danger { background: #9b3939; }
   }
   #qr-output button { display: none; }
 }
+  
+/* ダッシュボードのカード型デザイン */
+#dashboard {
+  margin-bottom: 24px;
+}
+
+#dashboard h2 {
+  font-size: 22px;
+  margin-bottom: 6px;
+}
+
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.dashboard-card {
+  background: #f0f5f1;
+  border: 1px solid #d9e6dc;
+  border-radius: 16px;
+  padding: 16px 10px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  box-shadow: 0 2px 6px rgba(30, 60, 40, 0.06);
+}
+
+.dashboard-card span {
+  font-size: 13px;
+  color: #52665a;
+}
+
+.dashboard-card strong {
+  font-size: 30px;
+  line-height: 1.2;
+  color: #24543b;
+}
+
+.dashboard-card small {
+  font-size: 12px;
+  color: #66776b;
+}
+
+#dash-repair {
+  color: #b7791f;
+}
+
+#dash-unusable {
+  color: #c0392b;
+}
+
+#dash-weight {
+  margin-top: 14px;
+  padding: 12px 14px;
+  background: #f5f5f5;
+  border-radius: 12px;
+  font-weight: 600;
+  color: #34463a;
+}
+
+@media (min-width: 600px) {
+  .dashboard-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
 </style>
 </head>
 <body>
