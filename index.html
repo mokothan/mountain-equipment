@@ -272,6 +272,37 @@ button.danger { background: #9b3939; }
   <button id="detail-close" class="secondary">詳細を閉じる</button>
 </section>
 
+<section id="loan-section" hidden>
+  <h2>⑧ 貸出・返却管理</h2>
+  <div id="loan-status"></div>
+
+  <label for="borrower-name">借りる人の名前</label>
+  <input id="borrower-name" type="text" placeholder="名前を入力">
+
+  <label for="loan-purpose">使用目的・山行名</label>
+  <input id="loan-purpose" type="text" placeholder="例：夏山合宿">
+
+  <label for="condition-before">貸出前の状態</label>
+  <select id="condition-before">
+    <option value="使用可能">使用可能</option>
+    <option value="修理中">修理中</option>
+    <option value="使用不可">使用不可</option>
+  </select>
+
+  <button id="loan-checkout">貸出を記録</button>
+
+  <label for="condition-after">返却後の状態</label>
+  <select id="condition-after">
+    <option value="使用可能">使用可能</option>
+    <option value="修理中">修理中</option>
+    <option value="使用不可">使用不可</option>
+  </select>
+
+  <button id="loan-return">返却を記録</button>
+  <h3>貸出履歴</h3>
+  <div id="loan-history"></div>
+</section>
+
 <section>
   <h2>⑥ QRコードを読み取る</h2>
   <p class="muted">カメラの使用を許可してください。読み取ると該当装備を表示します。</p>
@@ -572,8 +603,143 @@ button.danger { background: #9b3939; }
     });
 
     $('detail-section').hidden = false;
+    $('loan-section').hidden = false;
+    loadLoanHistory(item);
     $('detail-section').scrollIntoView({ behavior: 'smooth' });
   }
+
+  async function loadLoanHistory(item) {
+    const history = $('loan-history');
+    history.replaceChildren();
+
+    const { data, error } = await db
+      .from('equipment_loans')
+      .select('*')
+      .eq('equipment_id', item.id)
+      .order('checkout_at', { ascending: false });
+
+    if (error) {
+      history.textContent = '貸出履歴を取得できません：' + error.message;
+      return;
+    }
+
+    if (!data || data.length === 0) {
+      history.textContent = '貸出履歴はありません。';
+      return;
+    }
+
+    data.forEach(loan => {
+      const p = document.createElement('p');
+      p.textContent =
+        loan.borrower_name + '／' +
+        loan.purpose + '／貸出：' +
+        new Date(loan.checkout_at).toLocaleString('ja-JP') +
+        (loan.return_at
+          ? '／返却：' + new Date(loan.return_at).toLocaleString('ja-JP')
+          : '／貸出中');
+      history.append(p);
+    });
+  }
+
+  $('loan-checkout').onclick = async () => {
+    if (!db || !selected) {
+      alert('先に装備の詳細を開いてください。');
+      return;
+    }
+
+    const borrower = $('borrower-name').value.trim();
+    if (!borrower) {
+      alert('借りる人の名前を入力してください。');
+      return;
+    }
+
+    const { data: active, error: activeError } = await db
+      .from('equipment_loans')
+      .select('id')
+      .eq('equipment_id', selected.id)
+      .is('return_at', null);
+
+    if (activeError) {
+      alert('貸出状況を確認できません：' + activeError.message);
+      return;
+    }
+
+    if (active && active.length > 0) {
+      alert('この装備はすでに貸出中です。先に返却を記録してください。');
+      return;
+    }
+
+    const { error } = await db.from('equipment_loans').insert({
+      equipment_id: selected.id,
+      borrower_name: borrower,
+      purpose: $('loan-purpose').value.trim(),
+      condition_before: $('condition-before').value
+    });
+
+    if (error) {
+      alert('貸出を記録できません：' + error.message);
+      return;
+    }
+
+    alert('貸出を記録しました。');
+    await loadLoanHistory(selected);
+  };
+
+  $('loan-return').onclick = async () => {
+    if (!db || !selected) {
+      alert('先に装備の詳細を開いてください。');
+      return;
+    }
+
+    const { data: active, error: findError } = await db
+      .from('equipment_loans')
+      .select('id')
+      .eq('equipment_id', selected.id)
+      .is('return_at', null)
+      .order('checkout_at', { ascending: false })
+      .limit(1);
+
+    if (findError) {
+      alert('貸出状況を確認できません：' + findError.message);
+      return;
+    }
+
+    if (!active || active.length === 0) {
+      alert('この装備は貸出中ではありません。');
+      return;
+    }
+
+    const condition = $('condition-after').value;
+
+    const { error } = await db
+      .from('equipment_loans')
+      .update({
+        return_at: new Date().toISOString(),
+        condition_after: condition
+      })
+      .eq('id', active[0].id);
+
+    if (error) {
+      alert('返却を記録できません：' + error.message);
+      return;
+    }
+
+    const { error: equipmentError } = await db
+      .from('equipment_items')
+      .update({ condition: condition })
+      .eq('id', selected.id);
+
+    if (equipmentError) {
+      alert('返却は記録しましたが、装備の状態更新に失敗しました：' + equipmentError.message);
+      await loadLoanHistory(selected);
+      return;
+    }
+
+    selected.condition = condition;
+    alert('返却を記録しました。');
+    await loadLoanHistory(selected);
+    await loadEquipment();
+  };
 
   $('detail-edit').onclick = () => {
     if (selected) fillForm(selected);
