@@ -388,7 +388,7 @@ button.danger { background: #9b3939; }
 
     equipment = data || [];
     renderEquipment();
-
+    renderDashboard();
     if (initialNo) {
       const found = equipment.find(x => x.management_no === initialNo);
       if (found) showDetail(found);
@@ -397,6 +397,31 @@ button.danger { background: #9b3939; }
         $('scan-result').textContent = '管理番号 ' + initialNo + ' はまだ登録されていません。装備情報を入力して登録できます。';
       }
     }
+  }
+
+  function renderDashboard() {
+    const total = equipment.length;
+    const usable = equipment.filter(item => item.condition === '使用可能').length;
+    const repair = equipment.filter(item => item.condition === '修理中').length;
+    const unusable = equipment.filter(item => item.condition === '使用不可').length;
+
+    $('dash-total').textContent = total;
+    $('dash-usable').textContent = usable;
+    $('dash-repair').textContent = repair;
+    $('dash-unusable').textContent = unusable;
+
+    const weightedItems = equipment.filter(
+      item => item.unit_weight_g != null && item.unit_weight_g !== ''
+    );
+
+    const totalWeight = weightedItems.reduce(
+      (sum, item) => sum + Number(item.unit_weight_g),
+      0
+    );
+
+    $('dash-weight').textContent =
+      '重量合計：' + totalWeight.toLocaleString() +
+      ' g（重量登録済み ' + weightedItems.length + ' 個分）';
   }
 
   function renderEquipment() {
