@@ -2,141 +2,186 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>登山部 共同装備管理</title>
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
-  <script src="https://unpkg.com/html5-qrcode"></script>
-  <style>
-    body {
-      font-family: sans-serif;
-      margin: 0;
-      background: #f3f5f4;
-      color: #25352e;
-    }
-    header {
-      background: #234b39;
-      color: white;
-      padding: 20px;
-    }
-    main { max-width: 760px; margin: auto; padding: 16px; }
-    section {
-      background: white;
-      padding: 16px;
-      margin-bottom: 16px;
-      border-radius: 12px;
-    }
-    input, select, textarea, button {
-      box-sizing: border-box;
-      width: 100%;
-      padding: 11px;
-      margin: 5px 0 10px;
-      font-size: 16px;
-      border-radius: 7px;
-      border: 1px solid #ccd5ce;
-    }
-    button {
-      background: #28583f;
-      color: white;
-      border: none;
-      cursor: pointer;
-    }
-    button.secondary { background: #64746a; }
-    .item {
-      border: 1px solid #dce4de;
-      border-radius: 8px;
-      padding: 12px;
-      margin: 10px 0;
-    }
-    .muted { color: #637169; font-size: 14px; }
-    #qr-output { padding: 12px 0; }
-    #status { white-space: pre-wrap; }
-  </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>登山部 共同装備管理</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+<script src="https://unpkg.com/html5-qrcode"></script>
+<style>
+* { box-sizing: border-box; }
+body {
+  font-family: sans-serif;
+  margin: 0;
+  background: #f3f5f4;
+  color: #25352e;
+}
+header {
+  background: #234b39;
+  color: white;
+  padding: 18px;
+}
+header h1 { font-size: 23px; }
+main { max-width: 760px; margin: auto; padding: 14px; }
+section {
+  background: white;
+  padding: 16px;
+  margin-bottom: 15px;
+  border-radius: 12px;
+}
+input, select, textarea, button {
+  width: 100%;
+  padding: 11px;
+  margin: 5px 0 10px;
+  font-size: 16px;
+  border-radius: 7px;
+  border: 1px solid #ccd5ce;
+}
+button {
+  background: #28583f;
+  color: white;
+  border: none;
+  cursor: pointer;
+}
+button.secondary { background: #64746a; }
+button.danger { background: #9b3939; }
+.item {
+  border: 1px solid #dce4de;
+  border-radius: 9px;
+  padding: 12px;
+  margin: 10px 0;
+}
+.item p { margin: 7px 0; overflow-wrap: anywhere; }
+.muted { color: #637169; font-size: 14px; }
+.status { font-weight: bold; }
+#reader { width: 100%; }
+#qr-output { padding: 12px 0; }
+#qr-code { margin: 12px 0; }
+#qr-code img, #qr-code canvas { max-width: 100%; }
+#message { white-space: pre-wrap; }
+[hidden] { display: none !important; }
+@media print {
+  body * { visibility: hidden; }
+  #qr-output, #qr-output * { visibility: visible; }
+  #qr-output {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    text-align: center;
+  }
+  #qr-output button { display: none; }
+}
+</style>
 </head>
 <body>
 <header>
   <h1>登山部 共同装備管理</h1>
-  <p>装備の登録・在庫確認・QRコード管理</p>
+  <p>装備1個ずつの登録・状態管理・QRコード</p>
 </header>
 
 <main>
-  <section>
-    <h2>① Supabase接続設定</h2>
-    <p class="muted">自分のプロジェクト情報を入力してください。</p>
-    <label>Project URL</label>
-    <input id="project-url" placeholder="https://xxxx.supabase.co">
-    <label>Publishable key（公開用キー）</label>
-    <input id="publishable-key" placeholder="sb_publishable_...">
-    <button id="connect">接続する</button>
-    <p id="status" class="muted">未接続</p>
-  </section>
+<section>
+  <h2>① Supabase接続</h2>
+  <label>Project URL</label>
+  <input id="project-url" placeholder="https://xxxx.supabase.co">
+  <label>Publishable key（公開用キー）</label>
+  <input id="publishable-key" placeholder="sb_publishable_...">
+  <button id="connect">接続する</button>
+  <p id="message" class="muted">未接続</p>
+</section>
 
-  <section id="login-section" hidden>
-    <h2>② ログイン</h2>
-    <label>メールアドレス</label>
-    <input id="email" type="email" autocomplete="email">
-    <label>パスワード</label>
-    <input id="password" type="password" autocomplete="current-password">
-    <button id="login">ログイン</button>
-    <button id="signup" class="secondary">アカウントを新規作成</button>
-    <button id="logout" class="secondary" hidden>ログアウト</button>
-    <p class="muted">認証が必要なテーブルを利用するため、各部員のアカウントでログインします。</p>
-  </section>
+<section id="login-section" hidden>
+  <h2>② ログイン</h2>
+  <label>メールアドレス</label>
+  <input id="email" type="email" autocomplete="email">
+  <label>パスワード</label>
+  <input id="password" type="password" autocomplete="current-password">
+  <button id="login">ログイン</button>
+  <button id="signup" class="secondary">アカウントを新規作成</button>
+  <button id="logout" class="secondary" hidden>ログアウト</button>
+</section>
 
-  <div id="app" hidden>
-    <section>
-      <h2>③ 装備を登録</h2>
-      <label>管理番号</label>
-      <input id="management-no" placeholder="例：TENT-001">
-      <label>装備名</label>
-      <input id="name" placeholder="例：4人用テント">
-      <label>カテゴリー</label>
-      <select id="category">
-        <option>テント</option>
-        <option>調理器具</option>
-        <option>登山用具</option>
-        <option>救急用品</option>
-        <option>その他</option>
-      </select>
-      <label>使用可能な数量</label>
-      <input id="usable" type="number" min="0" value="0">
-      <label>修理が必要な数量</label>
-      <input id="repair" type="number" min="0" value="0">
-      <label>使用不能な数量</label>
-      <input id="unusable" type="number" min="0" value="0">
-      <label>1個あたりの重量（g）</label>
-      <input id="weight" type="number" min="0" placeholder="例：2500">
-      <label>保管場所</label>
-      <input id="location" placeholder="例：部室の棚A">
-      <label>備考</label>
-      <textarea id="notes" placeholder="状態や注意事項"></textarea>
-      <button id="save">装備を登録する</button>
-    </section>
+<div id="app" hidden>
+<section id="form-section">
+  <h2 id="form-title">③ 装備を1個登録</h2>
+  <p class="muted">実物1個につき1件登録してください。同じ種類でも管理番号は別々にします。</p>
 
-    <section>
-      <h2>④ 装備を検索</h2>
-      <input id="search" placeholder="管理番号・装備名で検索">
-      <button id="refresh">一覧を更新</button>
-      <div id="equipment-list"></div>
-    </section>
+  <label>管理番号（1個ごとに固有）</label>
+  <input id="management-no" placeholder="例：TENT-001">
 
-    <section>
-      <h2>⑤ QRコードを読み取る</h2>
-      <p class="muted">カメラを許可してください。HTTPSで公開したページで使用します。</p>
-      <button id="start-scan">カメラを起動</button>
-      <button id="stop-scan" class="secondary">カメラを停止</button>
-      <div id="reader"></div>
-      <p id="scan-result"></p>
-    </section>
+  <label>装備名</label>
+  <input id="name" placeholder="例：4人用テント">
 
-    <section>
-      <h2>⑥ 装備のQRコード</h2>
-      <p class="muted">一覧から装備を選ぶとQRコードを表示できます。</p>
-      <div id="qr-output"></div>
-      <button id="print-qr" class="secondary">QRコードを印刷</button>
-    </section>
-  </div>
+  <label>カテゴリー</label>
+  <select id="category">
+    <option>テント</option>
+    <option>調理器具</option>
+    <option>登山用具</option>
+    <option>救急用品</option>
+    <option>ザック</option>
+    <option>その他</option>
+  </select>
+
+  <label>状態</label>
+  <select id="condition">
+    <option>使用可能</option>
+    <option>修理中</option>
+    <option>使用不可</option>
+  </select>
+
+  <label>重量（g）</label>
+  <input id="weight" type="number" min="0" placeholder="例：2500">
+
+  <label>保管場所</label>
+  <input id="location" placeholder="例：部室の棚A">
+
+  <label>備考</label>
+  <textarea id="notes" placeholder="状態・注意事項など"></textarea>
+
+  <button id="save">新しい装備を登録</button>
+  <button id="cancel-edit" class="secondary" hidden>編集をキャンセル</button>
+</section>
+
+<section>
+  <h2>④ 装備一覧</h2>
+  <input id="search" placeholder="管理番号・装備名・置き場所で検索">
+  <label>状態で絞り込む</label>
+  <select id="filter-condition">
+    <option value="">すべての状態</option>
+    <option>使用可能</option>
+    <option>修理中</option>
+    <option>使用不可</option>
+  </select>
+  <button id="refresh">一覧を更新</button>
+  <p id="count" class="muted"></p>
+  <div id="equipment-list"></div>
+</section>
+
+<section id="detail-section" hidden>
+  <h2>⑤ 装備の詳細</h2>
+  <div id="detail"></div>
+  <button id="detail-edit">この装備を編集</button>
+  <button id="detail-qr" class="secondary">この装備のQRコード</button>
+  <button id="detail-close" class="secondary">詳細を閉じる</button>
+</section>
+
+<section>
+  <h2>⑥ QRコードを読み取る</h2>
+  <p class="muted">カメラの使用を許可してください。読み取ると該当装備を表示します。</p>
+  <button id="start-scan">カメラを起動</button>
+  <button id="stop-scan" class="secondary">カメラを停止</button>
+  <div id="reader"></div>
+  <p id="scan-result" class="muted"></p>
+</section>
+
+<section>
+  <h2>⑦ QRコードを表示・印刷</h2>
+  <p class="muted">QRコードには、このアプリで該当装備を開くためのURLが入ります。</p>
+  <div id="qr-output"></div>
+  <button id="print-qr" class="secondary">QRコードを印刷</button>
+</section>
+</div>
 </main>
 
 <script>
@@ -144,77 +189,118 @@
   let db = null;
   let scanner = null;
   let equipment = [];
+  let editingId = null;
   let selected = null;
+
   const $ = id => document.getElementById(id);
-  const message = text => $('status').textContent = text;
+  const say = text => $('message').textContent = text;
+  const params = new URLSearchParams(location.search);
+  const initialNo = params.get('management_no');
+
+  function readSettings() {
+    return {
+      url: $('project-url').value.trim(),
+      key: $('publishable-key').value.trim()
+    };
+  }
 
   $('connect').onclick = async () => {
-    const url = $('project-url').value.trim();
-    const key = $('publishable-key').value.trim();
-
+    const { url, key } = readSettings();
     if (!url || !key) {
-      message('Project URLと公開用キーを入力してください。');
+      say('Project URLとPublishable keyを入力してください。');
       return;
     }
 
     try {
       db = window.supabase.createClient(url, key);
-      const { data: { session } } = await db.auth.getSession();
+      const { data, error } = await db.auth.getSession();
+      if (error) throw error;
+
       $('login-section').hidden = false;
-      $('app').hidden = !session;
-      $('logout').hidden = !session;
-      message(session ? '接続しました。ログイン済みです。' : '接続しました。ログインしてください。');
-      if (session) await loadEquipment();
+      $('app').hidden = !data.session;
+      $('logout').hidden = !data.session;
+      say(data.session ? '接続済み・ログイン済み' : '接続しました。ログインしてください。');
+
+      if (data.session) await loadEquipment();
     } catch (e) {
-      message('接続に失敗しました：' + e.message);
+      say('接続エラー：' + e.message);
     }
   };
 
   $('signup').onclick = async () => {
-    if (!db) return alert('先にSupabaseへ接続してください。');
-    const { data, error } = await db.auth.signUp({
-      email: $('email').value.trim(),
-      password: $('password').value
-    });
+    if (!db) return alert('先に接続してください。');
+    const email = $('email').value.trim();
+    const password = $('password').value;
+    if (!email || !password) return alert('メールアドレスとパスワードを入力してください。');
+
+    const { error } = await db.auth.signUp({ email, password });
     if (error) return alert(error.message);
-    alert(data.session
-      ? 'アカウントを作成しました。'
-      : '確認メールが送信された場合は、メールを確認してからログインしてください。');
+    alert('登録処理を行いました。確認メールが届いた場合は、メールを確認してからログインしてください。');
   };
 
   $('login').onclick = async () => {
-    if (!db) return alert('先にSupabaseへ接続してください。');
+    if (!db) return alert('先に接続してください。');
     const { error } = await db.auth.signInWithPassword({
       email: $('email').value.trim(),
       password: $('password').value
     });
-    if (error) return alert(error.message);
+    if (error) return alert('ログインできません：' + error.message);
+
     $('app').hidden = false;
     $('logout').hidden = false;
     await loadEquipment();
   };
 
   $('logout').onclick = async () => {
+    if (scanner) await stopScanner();
     await db.auth.signOut();
     $('app').hidden = true;
     $('logout').hidden = true;
-    message('ログアウトしました。');
+    say('ログアウトしました。');
   };
 
+  function resetForm() {
+    editingId = null;
+    $('form-title').textContent = '③ 装備を1個登録';
+    $('save').textContent = '新しい装備を登録';
+    $('management-no').disabled = false;
+    $('management-no').value = '';
+    $('name').value = '';
+    $('category').value = 'その他';
+    $('condition').value = '使用可能';
+    $('weight').value = '';
+    $('location').value = '';
+    $('notes').value = '';
+    $('cancel-edit').hidden = true;
+  }
+
+  function fillForm(item) {
+    editingId = item.id;
+    $('form-title').textContent = '③ 装備情報を編集';
+    $('save').textContent = '変更を保存';
+    $('management-no').value = item.management_no;
+    $('management-no').disabled = true;
+    $('name').value = item.name;
+    $('category').value = item.category;
+    $('condition').value = item.condition;
+    $('weight').value = item.unit_weight_g ?? '';
+    $('location').value = item.storage_location || '';
+    $('notes').value = item.notes || '';
+    $('cancel-edit').hidden = false;
+    $('form-section').scrollIntoView({ behavior: 'smooth' });
+  }
+
+  $('cancel-edit').onclick = resetForm;
+
   $('save').onclick = async () => {
-    if (!db) return alert('Supabaseに接続してください。');
+    if (!db) return alert('先に接続してください。');
+
     const no = $('management-no').value.trim();
     const name = $('name').value.trim();
-
-    if (!no || !name) return alert('管理番号と装備名を入力してください。');
-
-    const values = ['usable', 'repair', 'unusable'].map(id => Number($(id).value));
-    if (values.some(n => !Number.isInteger(n) || n < 0)) {
-      return alert('数量は0以上の整数で入力してください。');
-    }
-
     const weightText = $('weight').value.trim();
     const weight = weightText === '' ? null : Number(weightText);
+
+    if (!no || !name) return alert('管理番号と装備名を入力してください。');
     if (weight !== null && (!Number.isInteger(weight) || weight < 0)) {
       return alert('重量は0以上の整数で入力してください。');
     }
@@ -223,32 +309,38 @@
       management_no: no,
       name,
       category: $('category').value,
-      quantity_usable: values[0],
-      quantity_repair: values[1],
-      quantity_unusable: values[2],
+      condition: $('condition').value,
       unit_weight_g: weight,
       storage_location: $('location').value.trim(),
-      notes: $('notes').value.trim()
+      notes: $('notes').value.trim(),
+      updated_at: new Date().toISOString()
     };
 
-    const { error } = await db.from('equipment').insert(record);
-    if (error) return alert('登録できませんでした：' + error.message);
+    let result;
+    if (editingId !== null) {
+      result = await db.from('equipment_items')
+        .update(record)
+        .eq('id', editingId);
+    } else {
+      result = await db.from('equipment_items').insert(record);
+    }
 
-    alert('装備を登録しました。');
-    $('management-no').value = '';
-    $('name').value = '';
-    $('usable').value = '0';
-    $('repair').value = '0';
-    $('unusable').value = '0';
-    $('weight').value = '';
-    $('location').value = '';
-    $('notes').value = '';
+    if (result.error) {
+      if (result.error.code === '23505') {
+        return alert('その管理番号はすでに使われています。別の番号を入力してください。');
+      }
+      return alert('保存できませんでした：' + result.error.message);
+    }
+
+    alert(editingId !== null ? '変更を保存しました。' : '装備を登録しました。');
+    resetForm();
     await loadEquipment();
   };
 
   async function loadEquipment() {
     if (!db) return;
-    const { data, error } = await db.from('equipment')
+
+    const { data, error } = await db.from('equipment_items')
       .select('*')
       .eq('archived', false)
       .order('management_no');
@@ -257,69 +349,161 @@
       alert('一覧を取得できません：' + error.message);
       return;
     }
+
     equipment = data || [];
     renderEquipment();
+
+    if (initialNo) {
+      const found = equipment.find(x => x.management_no === initialNo);
+      if (found) showDetail(found);
+      else {
+        $('management-no').value = initialNo;
+        $('scan-result').textContent = '管理番号 ' + initialNo + ' はまだ登録されていません。装備情報を入力して登録できます。';
+      }
+    }
   }
 
   function renderEquipment() {
-    const q = $('search').value.toLowerCase();
+    const query = $('search').value.trim().toLowerCase();
+    const condition = $('filter-condition').value;
     const list = $('equipment-list');
     list.replaceChildren();
 
-    equipment.filter(item =>
-      (item.name + ' ' + (item.management_no || '')).toLowerCase().includes(q)
-    ).forEach(item => {
+    const filtered = equipment.filter(item => {
+      const text = [
+        item.name, item.management_no, item.category,
+        item.storage_location, item.notes
+      ].join(' ').toLowerCase();
+
+      return text.includes(query) &&
+        (!condition || item.condition === condition);
+    });
+
+    $('count').textContent = `表示 ${filtered.length} 件 / 登録合計 ${equipment.length} 件`;
+
+    if (!filtered.length) {
+      list.textContent = '該当する装備はありません。';
+      return;
+    }
+
+    filtered.forEach(item => {
       const card = document.createElement('div');
       card.className = 'item';
+
       const title = document.createElement('strong');
-      title.textContent = `${item.name}（${item.management_no || '番号なし'}）`;
+      title.textContent = `${item.name}（${item.management_no}）`;
+
+      const status = document.createElement('p');
+      status.className = 'status';
+      status.textContent = '状態：' + item.condition;
+
       const info = document.createElement('p');
-      info.textContent =
-        `分類：${item.category} / 使用可能：${item.quantity_usable} / 修理：${item.quantity_repair} / 使用不能：${item.quantity_unusable} / 合計：${item.quantity_total}`;
-      const location = document.createElement('p');
-      location.textContent = '保管場所：' + (item.storage_location || '未設定');
+      info.textContent = `分類：${item.category} / 重量：${item.unit_weight_g == null ? '未設定' : item.unit_weight_g + ' g'}`;
+
+      const place = document.createElement('p');
+      place.textContent = '保管場所：' + (item.storage_location || '未設定');
+
+      const detailButton = document.createElement('button');
+      detailButton.textContent = '詳細を見る';
+      detailButton.onclick = () => showDetail(item);
+
       const qrButton = document.createElement('button');
-      qrButton.textContent = 'この装備のQRコードを表示';
+      qrButton.className = 'secondary';
+      qrButton.textContent = 'QRコードを表示';
       qrButton.onclick = () => showQR(item);
-      card.append(title, info, location, qrButton);
+
+      card.append(title, status, info, place, detailButton, qrButton);
       list.append(card);
     });
   }
 
-  function showQR(item) {
-    if (!item.management_no) return alert('管理番号がないためQRコードを作れません。');
+  function showDetail(item) {
     selected = item;
-    $('qr-output').replaceChildren();
-    const heading = document.createElement('p');
-    heading.textContent = `${item.management_no} — ${item.name}`;
-    $('qr-output').append(heading);
-    const target = document.createElement('div');
-    $('qr-output').append(target);
-    new QRCode(target, {
-      text: location.origin + location.pathname + '?management_no=' +
-        encodeURIComponent(item.management_no),
-      width: 200,
-      height: 200
+    const box = $('detail');
+    box.replaceChildren();
+
+    const rows = [
+      ['管理番号', item.management_no],
+      ['装備名', item.name],
+      ['カテゴリー', item.category],
+      ['状態', item.condition],
+      ['重量', item.unit_weight_g == null ? '未設定' : item.unit_weight_g + ' g'],
+      ['保管場所', item.storage_location || '未設定'],
+      ['備考', item.notes || 'なし']
+    ];
+
+    rows.forEach(([label, value]) => {
+      const p = document.createElement('p');
+      const strong = document.createElement('strong');
+      strong.textContent = label + '：';
+      p.append(strong, document.createTextNode(value));
+      box.append(p);
     });
+
+    $('detail-section').hidden = false;
+    $('detail-section').scrollIntoView({ behavior: 'smooth' });
+  }
+
+  $('detail-edit').onclick = () => {
+    if (selected) fillForm(selected);
+  };
+
+  $('detail-qr').onclick = () => {
+    if (selected) showQR(selected);
+  };
+
+  $('detail-close').onclick = () => {
+    $('detail-section').hidden = true;
+  };
+
+  function showQR(item) {
+    selected = item;
+    const output = $('qr-output');
+    output.replaceChildren();
+
+    const heading = document.createElement('h3');
+    heading.textContent = item.management_no + ' — ' + item.name;
+    output.append(heading);
+
+    const code = document.createElement('div');
+    code.id = 'qr-code';
+    output.append(code);
+
+    const target = location.origin + location.pathname +
+      '?management_no=' + encodeURIComponent(item.management_no);
+
+    new QRCode(code, {
+      text: target,
+      width: 220,
+      height: 220,
+      correctLevel: QRCode.CorrectLevel.M
+    });
+
+    const caption = document.createElement('p');
+    caption.className = 'muted';
+    caption.textContent = 'このQRコードは管理番号に紐づいています。状態や保管場所を変更しても同じコードを使えます。';
+    output.append(caption);
+    output.scrollIntoView({ behavior: 'smooth' });
   }
 
   $('search').oninput = renderEquipment;
+  $('filter-condition').onchange = renderEquipment;
   $('refresh').onclick = loadEquipment;
 
   $('print-qr').onclick = () => {
-    if (!selected) return alert('先に一覧から装備を選んでください。');
+    if (!$('qr-code')) return alert('先に装備のQRコードを表示してください。');
     window.print();
   };
 
   $('start-scan').onclick = async () => {
     if (scanner) return;
+
     try {
       scanner = new Html5Qrcode('reader');
       await scanner.start(
         { facingMode: 'environment' },
         { fps: 10, qrbox: { width: 230, height: 230 } },
         async decodedText => {
-          const result = $('scan-result');
           let no = decodedText;
           try {
             const parsed = new URL(decodedText);
@@ -327,11 +511,13 @@
           } catch (_) {}
 
           const match = equipment.find(item => item.management_no === no);
-          result.textContent = match
-            ? `読み取り成功：${match.name}（${match.management_no}）`
-            : `読み取り結果：${no}。未登録なら、登録画面に管理番号を入力してください。`;
+          $('scan-result').textContent = match
+            ? '読み取り成功：' + match.name + '（' + match.management_no + '）'
+            : '管理番号：' + no + '。登録されていない場合は、新しい装備として登録してください。';
 
-          if (match) showQR(match);
+          if (match) showDetail(match);
+          else $('management-no').value = no;
+
           await stopScanner();
         }
       );
@@ -343,18 +529,19 @@
 
   async function stopScanner() {
     if (!scanner) return;
-    try {
-      if (scanner.isScanning) await scanner.stop();
-      await scanner.clear();
-    } catch (_) {}
+    const current = scanner;
     scanner = null;
+    try {
+      if (current.isScanning) await current.stop();
+      await current.clear();
+    } catch (_) {}
   }
 
   $('stop-scan').onclick = stopScanner;
 
-  const params = new URLSearchParams(location.search);
-  const scannedNo = params.get('management_no');
-  if (scannedNo) $('management-no').value = scannedNo;
+  if (initialNo) {
+    $('management-no').value = initialNo;
+  }
 })();
 </script>
 </body>
