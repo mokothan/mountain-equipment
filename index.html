@@ -1,0 +1,361 @@
+
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>登山部 共同装備管理</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+  <script src="https://unpkg.com/html5-qrcode"></script>
+  <style>
+    body {
+      font-family: sans-serif;
+      margin: 0;
+      background: #f3f5f4;
+      color: #25352e;
+    }
+    header {
+      background: #234b39;
+      color: white;
+      padding: 20px;
+    }
+    main { max-width: 760px; margin: auto; padding: 16px; }
+    section {
+      background: white;
+      padding: 16px;
+      margin-bottom: 16px;
+      border-radius: 12px;
+    }
+    input, select, textarea, button {
+      box-sizing: border-box;
+      width: 100%;
+      padding: 11px;
+      margin: 5px 0 10px;
+      font-size: 16px;
+      border-radius: 7px;
+      border: 1px solid #ccd5ce;
+    }
+    button {
+      background: #28583f;
+      color: white;
+      border: none;
+      cursor: pointer;
+    }
+    button.secondary { background: #64746a; }
+    .item {
+      border: 1px solid #dce4de;
+      border-radius: 8px;
+      padding: 12px;
+      margin: 10px 0;
+    }
+    .muted { color: #637169; font-size: 14px; }
+    #qr-output { padding: 12px 0; }
+    #status { white-space: pre-wrap; }
+  </style>
+</head>
+<body>
+<header>
+  <h1>登山部 共同装備管理</h1>
+  <p>装備の登録・在庫確認・QRコード管理</p>
+</header>
+
+<main>
+  <section>
+    <h2>① Supabase接続設定</h2>
+    <p class="muted">自分のプロジェクト情報を入力してください。</p>
+    <label>Project URL</label>
+    <input id="project-url" placeholder="https://xxxx.supabase.co">
+    <label>Publishable key（公開用キー）</label>
+    <input id="publishable-key" placeholder="sb_publishable_...">
+    <button id="connect">接続する</button>
+    <p id="status" class="muted">未接続</p>
+  </section>
+
+  <section id="login-section" hidden>
+    <h2>② ログイン</h2>
+    <label>メールアドレス</label>
+    <input id="email" type="email" autocomplete="email">
+    <label>パスワード</label>
+    <input id="password" type="password" autocomplete="current-password">
+    <button id="login">ログイン</button>
+    <button id="signup" class="secondary">アカウントを新規作成</button>
+    <button id="logout" class="secondary" hidden>ログアウト</button>
+    <p class="muted">認証が必要なテーブルを利用するため、各部員のアカウントでログインします。</p>
+  </section>
+
+  <div id="app" hidden>
+    <section>
+      <h2>③ 装備を登録</h2>
+      <label>管理番号</label>
+      <input id="management-no" placeholder="例：TENT-001">
+      <label>装備名</label>
+      <input id="name" placeholder="例：4人用テント">
+      <label>カテゴリー</label>
+      <select id="category">
+        <option>テント</option>
+        <option>調理器具</option>
+        <option>登山用具</option>
+        <option>救急用品</option>
+        <option>その他</option>
+      </select>
+      <label>使用可能な数量</label>
+      <input id="usable" type="number" min="0" value="0">
+      <label>修理が必要な数量</label>
+      <input id="repair" type="number" min="0" value="0">
+      <label>使用不能な数量</label>
+      <input id="unusable" type="number" min="0" value="0">
+      <label>1個あたりの重量（g）</label>
+      <input id="weight" type="number" min="0" placeholder="例：2500">
+      <label>保管場所</label>
+      <input id="location" placeholder="例：部室の棚A">
+      <label>備考</label>
+      <textarea id="notes" placeholder="状態や注意事項"></textarea>
+      <button id="save">装備を登録する</button>
+    </section>
+
+    <section>
+      <h2>④ 装備を検索</h2>
+      <input id="search" placeholder="管理番号・装備名で検索">
+      <button id="refresh">一覧を更新</button>
+      <div id="equipment-list"></div>
+    </section>
+
+    <section>
+      <h2>⑤ QRコードを読み取る</h2>
+      <p class="muted">カメラを許可してください。HTTPSで公開したページで使用します。</p>
+      <button id="start-scan">カメラを起動</button>
+      <button id="stop-scan" class="secondary">カメラを停止</button>
+      <div id="reader"></div>
+      <p id="scan-result"></p>
+    </section>
+
+    <section>
+      <h2>⑥ 装備のQRコード</h2>
+      <p class="muted">一覧から装備を選ぶとQRコードを表示できます。</p>
+      <div id="qr-output"></div>
+      <button id="print-qr" class="secondary">QRコードを印刷</button>
+    </section>
+  </div>
+</main>
+
+<script>
+(() => {
+  let db = null;
+  let scanner = null;
+  let equipment = [];
+  let selected = null;
+  const $ = id => document.getElementById(id);
+  const message = text => $('status').textContent = text;
+
+  $('connect').onclick = async () => {
+    const url = $('project-url').value.trim();
+    const key = $('publishable-key').value.trim();
+
+    if (!url || !key) {
+      message('Project URLと公開用キーを入力してください。');
+      return;
+    }
+
+    try {
+      db = window.supabase.createClient(url, key);
+      const { data: { session } } = await db.auth.getSession();
+      $('login-section').hidden = false;
+      $('app').hidden = !session;
+      $('logout').hidden = !session;
+      message(session ? '接続しました。ログイン済みです。' : '接続しました。ログインしてください。');
+      if (session) await loadEquipment();
+    } catch (e) {
+      message('接続に失敗しました：' + e.message);
+    }
+  };
+
+  $('signup').onclick = async () => {
+    if (!db) return alert('先にSupabaseへ接続してください。');
+    const { data, error } = await db.auth.signUp({
+      email: $('email').value.trim(),
+      password: $('password').value
+    });
+    if (error) return alert(error.message);
+    alert(data.session
+      ? 'アカウントを作成しました。'
+      : '確認メールが送信された場合は、メールを確認してからログインしてください。');
+  };
+
+  $('login').onclick = async () => {
+    if (!db) return alert('先にSupabaseへ接続してください。');
+    const { error } = await db.auth.signInWithPassword({
+      email: $('email').value.trim(),
+      password: $('password').value
+    });
+    if (error) return alert(error.message);
+    $('app').hidden = false;
+    $('logout').hidden = false;
+    await loadEquipment();
+  };
+
+  $('logout').onclick = async () => {
+    await db.auth.signOut();
+    $('app').hidden = true;
+    $('logout').hidden = true;
+    message('ログアウトしました。');
+  };
+
+  $('save').onclick = async () => {
+    if (!db) return alert('Supabaseに接続してください。');
+    const no = $('management-no').value.trim();
+    const name = $('name').value.trim();
+
+    if (!no || !name) return alert('管理番号と装備名を入力してください。');
+
+    const values = ['usable', 'repair', 'unusable'].map(id => Number($(id).value));
+    if (values.some(n => !Number.isInteger(n) || n < 0)) {
+      return alert('数量は0以上の整数で入力してください。');
+    }
+
+    const weightText = $('weight').value.trim();
+    const weight = weightText === '' ? null : Number(weightText);
+    if (weight !== null && (!Number.isInteger(weight) || weight < 0)) {
+      return alert('重量は0以上の整数で入力してください。');
+    }
+
+    const record = {
+      management_no: no,
+      name,
+      category: $('category').value,
+      quantity_usable: values[0],
+      quantity_repair: values[1],
+      quantity_unusable: values[2],
+      unit_weight_g: weight,
+      storage_location: $('location').value.trim(),
+      notes: $('notes').value.trim()
+    };
+
+    const { error } = await db.from('equipment').insert(record);
+    if (error) return alert('登録できませんでした：' + error.message);
+
+    alert('装備を登録しました。');
+    $('management-no').value = '';
+    $('name').value = '';
+    $('usable').value = '0';
+    $('repair').value = '0';
+    $('unusable').value = '0';
+    $('weight').value = '';
+    $('location').value = '';
+    $('notes').value = '';
+    await loadEquipment();
+  };
+
+  async function loadEquipment() {
+    if (!db) return;
+    const { data, error } = await db.from('equipment')
+      .select('*')
+      .eq('archived', false)
+      .order('management_no');
+
+    if (error) {
+      alert('一覧を取得できません：' + error.message);
+      return;
+    }
+    equipment = data || [];
+    renderEquipment();
+  }
+
+  function renderEquipment() {
+    const q = $('search').value.toLowerCase();
+    const list = $('equipment-list');
+    list.replaceChildren();
+
+    equipment.filter(item =>
+      (item.name + ' ' + (item.management_no || '')).toLowerCase().includes(q)
+    ).forEach(item => {
+      const card = document.createElement('div');
+      card.className = 'item';
+      const title = document.createElement('strong');
+      title.textContent = `${item.name}（${item.management_no || '番号なし'}）`;
+      const info = document.createElement('p');
+      info.textContent =
+        `分類：${item.category} / 使用可能：${item.quantity_usable} / 修理：${item.quantity_repair} / 使用不能：${item.quantity_unusable} / 合計：${item.quantity_total}`;
+      const location = document.createElement('p');
+      location.textContent = '保管場所：' + (item.storage_location || '未設定');
+      const qrButton = document.createElement('button');
+      qrButton.textContent = 'この装備のQRコードを表示';
+      qrButton.onclick = () => showQR(item);
+      card.append(title, info, location, qrButton);
+      list.append(card);
+    });
+  }
+
+  function showQR(item) {
+    if (!item.management_no) return alert('管理番号がないためQRコードを作れません。');
+    selected = item;
+    $('qr-output').replaceChildren();
+    const heading = document.createElement('p');
+    heading.textContent = `${item.management_no} — ${item.name}`;
+    $('qr-output').append(heading);
+    const target = document.createElement('div');
+    $('qr-output').append(target);
+    new QRCode(target, {
+      text: location.origin + location.pathname + '?management_no=' +
+        encodeURIComponent(item.management_no),
+      width: 200,
+      height: 200
+    });
+  }
+
+  $('search').oninput = renderEquipment;
+  $('refresh').onclick = loadEquipment;
+
+  $('print-qr').onclick = () => {
+    if (!selected) return alert('先に一覧から装備を選んでください。');
+    window.print();
+  };
+
+  $('start-scan').onclick = async () => {
+    if (scanner) return;
+    try {
+      scanner = new Html5Qrcode('reader');
+      await scanner.start(
+        { facingMode: 'environment' },
+        { fps: 10, qrbox: { width: 230, height: 230 } },
+        async decodedText => {
+          const result = $('scan-result');
+          let no = decodedText;
+          try {
+            const parsed = new URL(decodedText);
+            no = parsed.searchParams.get('management_no') || decodedText;
+          } catch (_) {}
+
+          const match = equipment.find(item => item.management_no === no);
+          result.textContent = match
+            ? `読み取り成功：${match.name}（${match.management_no}）`
+            : `読み取り結果：${no}。未登録なら、登録画面に管理番号を入力してください。`;
+
+          if (match) showQR(match);
+          await stopScanner();
+        }
+      );
+    } catch (e) {
+      alert('カメラを起動できません。HTTPSで開いているか、カメラの使用を許可しているか確認してください。');
+      scanner = null;
+    }
+  };
+
+  async function stopScanner() {
+    if (!scanner) return;
+    try {
+      if (scanner.isScanning) await scanner.stop();
+      await scanner.clear();
+    } catch (_) {}
+    scanner = null;
+  }
+
+  $('stop-scan').onclick = stopScanner;
+
+  const params = new URLSearchParams(location.search);
+  const scannedNo = params.get('management_no');
+  if (scannedNo) $('management-no').value = scannedNo;
+})();
+</script>
+</body>
+</html>
