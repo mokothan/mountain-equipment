@@ -103,6 +103,42 @@ button.danger { background: #9b3939; }
 </section>
 
 <div id="app" hidden>
+  
+<section id="dashboard">
+  <h2>装備管理ダッシュボード</h2>
+  <p class="muted">登録されている装備の現在の状況</p>
+
+  <div class="dashboard-grid">
+    <div class="dashboard-card">
+      <span>登録装備数</span>
+      <strong id="dash-total">0</strong>
+      <small>個</small>
+    </div>
+
+    <div class="dashboard-card">
+      <span>使用可能</span>
+      <strong id="dash-usable">0</strong>
+      <small>個</small>
+    </div>
+
+    <div class="dashboard-card">
+      <span>修理中</span>
+      <strong id="dash-repair">0</strong>
+      <small>個</small>
+    </div>
+
+    <div class="dashboard-card">
+      <span>使用不可</span>
+      <strong id="dash-unusable">0</strong>
+      <small>個</small>
+    </div>
+  </div>
+
+  <p id="dash-weight" class="muted">
+    重量合計：計算中
+  </p>
+</section>
+
 <section id="form-section">
   <h2 id="form-title">③ 装備を1個登録</h2>
   <p class="muted">実物1個につき1件登録してください。同じ種類でも管理番号は別々にします。</p>
